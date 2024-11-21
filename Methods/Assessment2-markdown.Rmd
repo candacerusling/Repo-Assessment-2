@@ -9,3 +9,24 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Aim
+
+## Load Packages
+
+```{r}
+library(tidyverse)
+library(viridis)   
+library(plotly) 
+```
+
+
+## Read in Data
+
+```{r}
+getwd()
+```
+
+
+## Prepare Data
+
+## Plot Graph 
