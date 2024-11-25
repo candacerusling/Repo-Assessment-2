@@ -7,6 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
 ```
 
 ## Aim
@@ -17,16 +18,44 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(viridis)   
 library(plotly) 
+library(here)
 ```
 
 
 ## Read in Data
 
 ```{r}
-getwd()
+dev_data <- read_csv(here("./inputs/dev_concerns_all.csv"))
+simd_data <- read_csv(here("./inputs/SIMD 2020v2.csv"))
 ```
 
 
 ## Prepare Data
+
+
+```{r}
+glimpse(dev_data) 
+
+glimpse(simd_data)
+
+dev_data %>% distinct(area_type)
+```
+## Filter data to keep only the variables needed
+
+```{r}
+HB_dev <- dev_data %>% 
+  select(area_name, area_code, year, numerator, measure) 
+glimpse(HB_dev)
+
+simd_HB <- simd_data %>% 
+  select(IntZone, HB, SIMD2020V2HBQuintile)
+glimpse(simd_HB)
+```
+```{r}
+HB_dev %>% distinct(area_code)
+
+simd_HB %>% distinct(IntZone)
+```
+
 
 ## Plot Graph 
