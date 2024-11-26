@@ -19,6 +19,9 @@ library(tidyverse)
 library(viridis)   
 library(plotly) 
 library(here)
+library(ggplot2)
+library(ggbump)
+library(hrbrthemes)
 ```
 
 
@@ -27,35 +30,78 @@ library(here)
 ```{r}
 dev_data <- read_csv(here("./inputs/dev_concerns_all.csv"))
 simd_data <- read_csv(here("./inputs/SIMD 2020v2.csv"))
+dev_data_HB <- read_csv(here("./inputs/dev_data_HB_allyrs.csv"))
+int_zone_code <- read_csv(here("./inputs/iz2011_codes_and_labels_21042020.csv"))
 ```
 
 
 ## Prepare Data
-
-
 ```{r}
-glimpse(dev_data) 
+dev_data %>% glimpse
 
-glimpse(simd_data)
-
-dev_data %>% distinct(area_type)
 ```
+
+
+
+
 ## Filter data to keep only the variables needed
 
 ```{r}
-HB_dev <- dev_data %>% 
-  select(area_name, area_code, year, numerator, measure) 
-glimpse(HB_dev)
 
-simd_HB <- simd_data %>% 
+iz_dev_data <- dev_data %>%  
+  filter(area_type == "Intermediate zone") %>%
+  select(area_name, area_code, year, measure) 
+glimpse(iz_dev_data)
+
+iz_info <- int_zone_code %>%
+  select(IntZone,HBName)
+
+iz_simd <- simd_data %>% 
   select(IntZone, HB, SIMD2020V2HBQuintile)
 glimpse(simd_HB)
 ```
-```{r}
-HB_dev %>% distinct(area_code)
+## Calculate mean SIMD
 
-simd_HB %>% distinct(IntZone)
+
+```{r}
+iz_simd_mean <- iz_simd %>%
+  group_by(IntZone) %>%
+  mutate(mean_simd=mean(SIMD2020V2HBQuintile, na.rm = T)) %>%
+  data.frame() 
+```
+
+```{r}
+iz_simd_mean <- iz_simd_mean %>%
+  distinct(IntZone, .keep_all = T) %>%
+  select(IntZone, HB, mean_simd)
+```
+
+## Join datasets
+```{r}
+dev_simd <- full_join(iz_dev_data, iz_simd_mean, by = c("area_code" = "IntZone"))
+```
+```{r}
+dev_simd <- left_join(dev_simd, iz_info, by = c("area_code" = "IntZone"))
+```
+
+```{r}
+dev_simd <- dev_simd %>%
+  mutate(HBName = gsub("NHS", "", HBName)) %>%
+  rename(health_board = HBName, intermediate_zone = area_name, iz_code = area_code, HB_code = HB, percent_concern = measure) %>%
+  select()
 ```
 
 
 ## Plot Graph 
+
+```{r}
+ggplot(dev_data_HB, aes(x=year, y=measure)) + 
+    geom_point() +
+  facet_wrap(~area_name)
+```
+```{r}
+ggplot(dev_data_HB, aes(x = year, y = measure, colour = area_name)) +
+  geom_bump()
+```
+
+
