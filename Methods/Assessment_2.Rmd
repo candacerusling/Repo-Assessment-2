@@ -1,0 +1,196 @@
+---
+title: "Assessment_2"
+author: "C Rusling"
+date: "2024-11-27"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Aim
+
+The aim of this report is to explore the impact of the COVID-19 pandemic on the percentage of children reported to have at least one developmental concern at 27-30 months.
+
+## Load Packages
+
+\`
+
+```{r load packages}
+library(tidyverse)
+library(viridis)   
+library(plotly) 
+library(here)
+library(ggplot2)
+library(ggbump)
+library(hrbrthemes)
+library(sf)
+
+```
+
+## Data Acquisition
+
+Data file on developmental concerns at 27 to 30 months from ScoPho including all available years for Scotland, health boards, and intermediate data zones.
+
+```{r read in data}
+dev_data <- read_csv(here("./inputs/dev_concerns_all.csv"))
+shapefile <- read_sf(here("./Inputs/Shape file-SG_NHS_HealthBoards_2019"))
+```
+
+## Data Cleaning
+
+```{r glimpse data for Developmental Concerns at 27-30 months}
+dev_data %>% glimpse
+```
+
+Filter data to health boards and keep only the variables of interest, including the area name, area code, year, and measure.
+
+```{r filter variables}
+
+hb_dev_data <- dev_data %>%  
+  filter(area_type == "Health board") %>%
+  select(area_name, area_code, year, measure) 
+glimpse(hb_dev_data)
+
+```
+
+Rename variables for ease of plotting.
+
+```{r rename variables}
+hb_dev_data <- hb_dev_data %>%
+  mutate(area_name = gsub("NHS", "", area_name)) %>%
+  rename(health_board = area_name, percent_concern = measure) 
+```
+
+## Data Analysis
+
+Find health boards with the biggest difference in percentage of concern pre-COVID (2019) and post-COVID (2021) to highlight areas of concern in plots.
+
+```{r find difference}
+
+#Explore the data 
+
+hb_dev_data %>%
+  group_by(health_board) %>%
+  summary(percent_concern)
+
+#Calculate the difference of concern year over year in each health board 
+
+diff_data_all <- hb_dev_data %>%
+  group_by(health_board) %>%
+  arrange(year) %>%
+  mutate(difference = percent_concern - lag(percent_concern, default = first(percent_concern))) %>%
+  mutate(cumm_diff = cumsum(difference)) %>%
+  arrange(health_board)
+
+# Isolate years of interest 
+
+diff_data <- hb_dev_data %>%
+  group_by(health_board) %>%
+  filter(year == 2019 | year== 2020 | year == 2021) %>%
+  arrange(year) %>%
+  mutate(difference = percent_concern - lag(percent_concern, default = first(percent_concern))) %>%
+  mutate(cumm_diff = cumsum(difference)) %>%
+  arrange(health_board) 
+```
+
+Rank the percentage of concern by health board for 2019, 2020, 2021 and rank the difference of percentage from 2019 to 2021 by health board. This will help illustrate areas of concern that may be over looked if based on percentage of concern alone. 
+
+```{r rankings}
+# See rankings
+diff_rank <- diff_data %>%
+  group_by(year) %>%
+  mutate((rank_diff = rank(cumm_diff)), (rank_per = rank(percent_concern))) %>%
+  rename(rank_diff = "(rank_diff = rank(cumm_diff))", rank_per = "(rank_per = rank(percent_concern))")
+
+# Filter for 2021
+diff_rank_2021 <- diff_rank %>%
+  filter(year== 2021) %>%
+  select(1,7,8) 
+
+tibble(diff_rank_2021)
+```
+
+```{r geospatial data}
+# Merge geospatial and numeric data for mapping
+dev_2019 <- hb_dev_data %>%
+  filter(year == 2019)
+sf_dev_2019 <- shapefile %>%
+  left_join(dev_2019, by = c("HBCode" = "area_code"))
+dev_2020 <- hb_dev_data %>%
+  filter(year == 2020)
+sf_dev_2020 <- shapefile %>%
+  left_join(dev_2020, by = c("HBCode" = "area_code"))
+dev_2021 <- hb_dev_data %>%
+  filter(year == 2021)
+sf_dev_2021 <- shapefile %>%
+  left_join(dev_2021, by = c("HBCode" = "area_code"))
+```
+
+
+## Communication
+
+```{r line plot}
+
+hb_dev_data %>%
+ ggplot( aes(x=year, y=percent_concern, group=health_board, fill=health_board)) +
+    geom_area(show.legend = FALSE) +
+    scale_color_viridis(discrete = TRUE) +
+    theme_classic() +
+  labs(title = "Developmental Concerns at 27-30 Months", 
+       subtitle = "Percentage of Concern by Health Board",
+       y = "percent",
+       x = " ") +
+  facet_wrap(~health_board) 
+ 
+```
+
+```{r bar plot}
+diff_data %>%
+  filter(year %in% c(2021)) %>%
+  mutate(year=as.factor(year)) %>%
+  mutate(health_board=as.factor(health_board)) %>%
+ggplot(aes(fill= reorder(health_board, +`cumsum(difference)`), y=`cumsum(difference)`, x= reorder(health_board, +`cumsum(difference)`))) + 
+  geom_col() + scale_color_viridis(discrete = TRUE) +
+  theme_classic() +
+  labs(title = "Developmental Concerns at 27-30 Months", 
+       subtitle = "Difference in Percentage of Concern 2019-2021",
+       x = "", 
+       y = "percentage of change",
+       fill = "Health Board") +
+  theme(axis.ticks.x = element_blank(),
+       axis.text.x = element_blank() )
+       
+
+
+```
+```{r}
+diff_rank %>%
+  filter(year == 2021) %>%
+  ggplot(aes(x = percent_concern, y = cumm_diff, size = rank_diff, colour = health_board)) +
+           geom_point(alpha = 0.7) +
+  scale_size(range = c(1, 14), guide = FALSE) +
+  scale_colour_viridis(discrete = TRUE) +
+  theme_classic()
+  
+```
+
+
+
+```{r}
+map_2021 <- sf_dev_2021 %>%
+  ggplot(aes(fill = percent_concern)) + 
+  geom_sf(colour = NA) + # Adding 'colour = NA' removes boundaries 
+  # around each LA
+  scale_fill_viridis("percent_concern") + # Changes our colour scale to 
+  # viridis and prettifies our fill title in the legend
+  theme_void() # removes unnecessary background grid and axes
+map_2021
+```
+## Summary
+Who is your target audience, and what is the key message you are aiming to get across (with your chosen visualisations)?
+What data did you use to produce your visualisation? What are the data limitations?
+What are the strengths and limitations of the approach you took for your visualisation?
+
+## References

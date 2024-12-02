@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Load Packages
 
-```{r}
+```{r load packages}
 library(tidyverse)
 library(viridis)   
 library(plotly) 
@@ -27,7 +27,7 @@ library(hrbrthemes)
 
 ## Read in Data
 
-```{r}
+```{r read in data}
 dev_data <- read_csv(here("./inputs/dev_concerns_all.csv"))
 simd_data <- read_csv(here("./inputs/SIMD 2020v2.csv"))
 dev_data_HB <- read_csv(here("./inputs/dev_data_HB_allyrs.csv"))
@@ -36,7 +36,7 @@ int_zone_code <- read_csv(here("./inputs/iz2011_codes_and_labels_21042020.csv"))
 
 
 ## Prepare Data
-```{r}
+```{r glimpse data for Developmental Concerns at 27-30 months}
 dev_data %>% glimpse
 
 ```
@@ -46,7 +46,7 @@ dev_data %>% glimpse
 
 ## Filter data to keep only the variables needed
 
-```{r}
+```{r filter variables}
 
 iz_dev_data <- dev_data %>%  
   filter(area_type == "Intermediate zone") %>%
@@ -60,35 +60,40 @@ iz_simd <- simd_data %>%
   select(IntZone, HB, SIMD2020V2HBQuintile)
 glimpse(simd_HB)
 ```
-## Calculate mean SIMD
+## Calculate mean SIMD for intermediate zones
 
 
-```{r}
+```{r mean SIMD intermediate zones}
 iz_simd_mean <- iz_simd %>%
   group_by(IntZone) %>%
   mutate(mean_simd=mean(SIMD2020V2HBQuintile, na.rm = T)) %>%
   data.frame() 
 ```
 
-```{r}
+```{r distinct SIMD}
 iz_simd_mean <- iz_simd_mean %>%
   distinct(IntZone, .keep_all = T) %>%
   select(IntZone, HB, mean_simd)
 ```
 
 ## Join datasets
-```{r}
+```{r join developmental data and mean SIMD data}
 dev_simd <- full_join(iz_dev_data, iz_simd_mean, by = c("area_code" = "IntZone"))
 ```
-```{r}
+```{r join new dataset with area labels}
 dev_simd <- left_join(dev_simd, iz_info, by = c("area_code" = "IntZone"))
 ```
 
-```{r}
+## Rename variables
+```{r rename variables}
 dev_simd <- dev_simd %>%
   mutate(HBName = gsub("NHS", "", HBName)) %>%
-  rename(health_board = HBName, intermediate_zone = area_name, iz_code = area_code, HB_code = HB, percent_concern = measure) %>%
-  select()
+  rename(health_board = HBName, intermediate_zone = area_name, iz_code = area_code, HB_code = HB, percent_concern = measure) 
+```
+```{r reorder variables}
+dev_simd <- dev_simd %>%
+ select(health_board, HB_code, intermediate_zone, iz_code, year, percent_concern, mean_simd) %>%
+  rename(mean_iz_simd = mean_simd)
 ```
 
 
